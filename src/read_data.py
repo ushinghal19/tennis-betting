@@ -93,6 +93,5 @@ def load_dataset():
 
 pd.set_option('display.max_columns', None)
 dfs, wl = process_data()
-print_nan_rows(dfs, wl)
 # print(dfs.head())
 # print(wl[:5])
