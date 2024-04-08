@@ -17,7 +17,7 @@ class TennisDataset(Dataset):
         # Converts winners to a binary format where 1 is Player 1 won, 0 otherwise
         # labels_np = (target_array == features_df['Player 1'].values).astype(np.float32)
         labels_np = target_array.astype(np.float32)
-        
+
         # Convert numpy arrays to PyTorch tensors
         self.features = torch.tensor(features_np)
         self.labels = torch.tensor(labels_np)
@@ -55,6 +55,10 @@ def process_data(drop_winner_rank=True):
 
     df_selected = df[columns_to_keep].copy()
 
+    if not drop_winner_rank: 
+        print(df_selected)
+        return df_selected
+
     # Update mappings before shuffling and dropping
     df_selected['Court'] = df_selected['Court'].map({'Indoor': float(1), 'Outdoor': float(0)})
     df_selected['Surface'] = df_selected['Surface'].map({'Hard': float(3), 'Clay': float(2), 'Carpet': float(1), 'Grass': float(0)})
@@ -72,12 +76,7 @@ def process_data(drop_winner_rank=True):
     # Extract target array based on shuffled data
     target_array = (df_selected['Player 1'] == df_selected['Winner']).astype(float).values
 
-    if drop_winner_rank:
-        # Drop columns after all operations to ensure correct data flow
-        features_df = df_selected.drop(['Winner', 'Loser', "WRank", "LRank", "WPts", "LPts", 'Player 1', 'Player 2', 'Date', 'Round', 'Location', 'Tournament'], axis=1)
-    else:
-        features_df = df_selected.drop(['Winner', 'Loser', "WPts", "LPts", 'Player 1', 'Player 2', 'Date', 'Round', 'Location', 'Tournament'], axis=1)
-
+    features_df = df_selected.drop(['Winner', 'Loser', "WRank", "LRank", "WPts", "LPts", 'Player 1', 'Player 2', 'Date', 'Round', 'Location', 'Tournament'], axis=1)
     return features_df, target_array
 
 
