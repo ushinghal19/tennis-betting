@@ -81,6 +81,17 @@ def train(model, train_data_loader, val_data_loader, log_interval):
         plt.legend(["Train", "Validation"])
 
 
+def test_correct():
+    dataset = load_dataset()
+    total_size = len(dataset)
+    print(dataset[:100])
+    train_loader = DataLoader(dataset[:100], batch_size=64, shuffle=True)
+
+    model = BaseModel(input_dim=9, hidden_dim=50, num_layers=3)
+
+    train(model, train_loader, train_loader, 2)
+
+
 def setup():
     dataset = load_dataset()
     total_size = len(dataset)
@@ -96,19 +107,13 @@ def setup():
     val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
 
-
     # Create model
     model = BaseModel(input_dim=9, hidden_dim=50, num_layers=3)
-    for i, (X, t) in enumerate(train_loader):
-        # print(X)
-        # print(X.shape)
-        # print(t)
 
-        Z = model(X)
-        print(Z)
-        break
+    print(accuracy(model, val_loader))
 
 
 if __name__ == '__main__':
-    setup()
+    #setup()
+    test_correct()
 
