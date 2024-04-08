@@ -56,7 +56,6 @@ def process_data(drop_winner_rank=True):
     df_selected = df[columns_to_keep].copy()
 
     if not drop_winner_rank: 
-        print(df_selected)
         return df_selected
 
     # Update mappings before shuffling and dropping
