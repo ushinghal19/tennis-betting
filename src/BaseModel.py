@@ -9,7 +9,7 @@ class BaseModel(nn.Module):
         self.fc1 = nn.Linear(input_dim, hidden_dim)
         self.relu = nn.ReLU()
         self.hidden_layers = nn.ModuleList([nn.Linear(hidden_dim, hidden_dim) for _ in range(num_layers-1)])
-        self.fc2 = nn.Linear(hidden_dim, 2)
+        self.fc2 = nn.Linear(hidden_dim, 1)
         
     def forward(self, x):
         x = self.fc1(x)
