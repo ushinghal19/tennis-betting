@@ -22,6 +22,4 @@ class BaseModel(nn.Module):
         
         x = self.fc2(x)
 
-        # we use sigmoid for binary classification
-        out = torch.sigmoid(x) 
-        return out
+        return x
