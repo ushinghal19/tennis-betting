@@ -4,16 +4,38 @@ Training Module.
 import torch.nn as nn
 import torch.optim as optim
 import matplotlib.pyplot as plt
+from read_data import TennisDataset, load_dataset
+from torch.utils.data import DataLoader
+from torch.utils.data.dataset import random_split
+import torch
 
 def accuracy(model, data_loader):
-    return -1
+    """
+    Evaluate model on a Data Loader.
+    """
+    model.eval()
+    correct = 0
+
+    # Disable gradient computation
+    with torch.no_grad():
+        for batch_data, batch_labels in data_loader:
+            # Run model
+            output = model(batch_data)
+
+            # Softmax
+            y = (torch.sigmoid(output) > 0.5).float()
+
+            # Increment correct count
+            correct += torch.sum(y == batch_labels).item()
+
+    return correct / len(data_loader.dataset)
 
 def train(model, train_data_loader, val_data_loader, log_interval):
     learning_rate = 0.01
     num_epochs = 10
 
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    criterion = nn.BCELoss()
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-4)
 
     # Training statistics
     iters, train_loss, train_acc, val_acc = [], [], [], []
@@ -56,3 +78,26 @@ def train(model, train_data_loader, val_data_loader, log_interval):
         plt.xlabel("Iterations")
         plt.ylabel("Accuracy")
         plt.legend(["Train", "Validation"])
+
+
+def setup():
+    dataset = load_dataset()
+    total_size = len(dataset)
+    train_size = int(0.7 * total_size)  # 70% of the dataset for training
+    val_size = int(0.15 * total_size)  # 15% for validation
+    test_size = total_size - train_size - val_size  # The rest for testing, to ensure all data is used
+
+    # Splitting the dataset
+    train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size])
+
+    # Creating DataLoaders for each set
+    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
+
+    print(train_loader)
+
+
+if __name__ == '__main__':
+    setup()
+
