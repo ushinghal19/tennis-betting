@@ -72,7 +72,7 @@ def process_data():
     target_array = (df_selected['Player 1'] == df_selected['Winner']).astype(float).values
 
     # Drop columns after all operations to ensure correct data flow
-    features_df = df_selected.drop(['Winner', 'Loser', 'Player 1', 'Player 2', 'Date', 'Round', 'Location', 'Tournament'], axis=1)
+    features_df = df_selected.drop(['Winner', 'Loser', "WRank", "LRank", "WPts", "LPts", 'Player 1', 'Player 2', 'Date', 'Round', 'Location', 'Tournament'], axis=1)
 
     return features_df, target_array
 
