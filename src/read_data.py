@@ -72,10 +72,13 @@ def process_data(drop_winner_rank=True):
     # Apply shuffling
     df_selected[['Player 1', 'Player 2', 'Rank 1', 'Rank 2', 'Pts 1', 'Pts 2']] = df_selected.apply(shuffle_row, axis=1)
 
+    df_selected = df_selected.dropna() # this removes rows with a NaN (only 130 of them)
+
     # Extract target array based on shuffled data
     target_array = (df_selected['Player 1'] == df_selected['Winner']).astype(float).values
 
     features_df = df_selected.drop(['Winner', 'Loser', "WRank", "LRank", "WPts", "LPts", 'Player 1', 'Player 2', 'Date', 'Round', 'Location', 'Tournament'], axis=1)
+        
     return features_df, target_array
 
 
@@ -88,7 +91,8 @@ def load_dataset():
     dataset = TennisDataset(features_df=dfs, target_array=wl)
     return dataset
 
-# pd.set_option('display.max_columns', None)
-# dfs, wl = process_data()
+pd.set_option('display.max_columns', None)
+dfs, wl = process_data()
+print_nan_rows(dfs, wl)
 # print(dfs.head())
 # print(wl[:5])
