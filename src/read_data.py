@@ -44,7 +44,7 @@ def read_data():
     return combined_df
 
 
-def process_data():
+def process_data(drop_winner_rank=True):
     df = read_data()
 
     columns_to_keep = [
@@ -57,7 +57,7 @@ def process_data():
     # Update mappings before shuffling and dropping
     df_selected['Court'] = df_selected['Court'].map({'Indoor': float(1), 'Outdoor': float(0)})
     df_selected['Surface'] = df_selected['Surface'].map({'Hard': float(3), 'Clay': float(2), 'Carpet': float(1), 'Grass': float(0)})
-    df_selected['Series'] = df_selected['Series'].map({'Grand Slam': float(3), 'Masters': float(2), 'International': float(1), 'International Gold': float(0)})
+    df_selected['Series'] = df_selected['Series'].map({'Masters 1000': float(7), 'ATP500': float(6), 'Masters Cup': float(5), 'ATP250':float(4), 'Grand Slam': float(3), 'Masters': float(2), 'International': float(1), 'International Gold': float(0)})
 
     def shuffle_row(row):
         if np.random.rand() > 0.5:
@@ -71,8 +71,11 @@ def process_data():
     # Extract target array based on shuffled data
     target_array = (df_selected['Player 1'] == df_selected['Winner']).astype(float).values
 
-    # Drop columns after all operations to ensure correct data flow
-    features_df = df_selected.drop(['Winner', 'Loser', "WRank", "LRank", "WPts", "LPts", 'Player 1', 'Player 2', 'Date', 'Round', 'Location', 'Tournament'], axis=1)
+    if drop_winner_rank:
+        # Drop columns after all operations to ensure correct data flow
+        features_df = df_selected.drop(['Winner', 'Loser', "WRank", "LRank", "WPts", "LPts", 'Player 1', 'Player 2', 'Date', 'Round', 'Location', 'Tournament'], axis=1)
+    else:
+        features_df = df_selected.drop(['Winner', 'Loser', "WPts", "LPts", 'Player 1', 'Player 2', 'Date', 'Round', 'Location', 'Tournament'], axis=1)
 
     return features_df, target_array
 
