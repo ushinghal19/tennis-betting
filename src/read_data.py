@@ -58,7 +58,7 @@ def process_data(drop_winner_rank=True):
     # Update mappings before shuffling and dropping
     df_selected['Court'] = df_selected['Court'].map({'Indoor': float(1), 'Outdoor': float(0)})
     df_selected['Surface'] = df_selected['Surface'].map({'Hard': float(3), 'Clay': float(2), 'Carpet': float(1), 'Grass': float(0)})
-    df_selected['Series'] = df_selected['Series'].map({'Masters 1000': float(7), 'ATP500': float(6), 'Masters Cup': float(5), 'ATP250':float(4), 'Grand Slam': float(3), 'Masters': float(2), 'International': float(1), 'International Gold': float(0)})
+    df_selected['Series'] = df_selected['Series'].map({'Masters 1000': float(7), 'ATP500': float(6), 'Masters Cup': float(5), 'ATP250': float(4), 'Grand Slam': float(3), 'Masters': float(2), 'International': float(1), 'International Gold': float(0)})
 
     def shuffle_row(row):
         if np.random.rand() > 0.5:

@@ -8,6 +8,7 @@ from read_data import TennisDataset, load_dataset
 from torch.utils.data import DataLoader
 from torch.utils.data.dataset import random_split
 import torch
+from BaseModel import BaseModel
 
 def accuracy(model, data_loader):
     """
@@ -95,7 +96,17 @@ def setup():
     val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
 
-    print(train_loader)
+
+    # Create model
+    model = BaseModel(input_dim=9, hidden_dim=50, num_layers=3)
+    for i, (X, t) in enumerate(train_loader):
+        # print(X)
+        # print(X.shape)
+        # print(t)
+
+        Z = model(X)
+        print(Z)
+        break
 
 
 if __name__ == '__main__':
