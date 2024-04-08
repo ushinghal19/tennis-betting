@@ -88,7 +88,7 @@ def load_dataset():
     dataset = TennisDataset(features_df=dfs, target_array=wl)
     return dataset
 
-pd.set_option('display.max_columns', None)
-dfs, wl = process_data()
-print(dfs.head())
-print(wl[:5])
+# pd.set_option('display.max_columns', None)
+# dfs, wl = process_data()
+# print(dfs.head())
+# print(wl[:5])

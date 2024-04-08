@@ -21,7 +21,7 @@ def accuracy(model, data_loader):
     with torch.no_grad():
         for batch_data, batch_labels in data_loader:
             # Run model
-            output = model(batch_data)
+            output = model(batch_data).squeeze()
 
             # Softmax
             y = (torch.sigmoid(output) > 0.5).float()
@@ -32,11 +32,11 @@ def accuracy(model, data_loader):
     return correct / len(data_loader.dataset)
 
 def train(model, train_data_loader, val_data_loader, log_interval):
-    learning_rate = 0.01
-    num_epochs = 10
+    learning_rate = 0.0001
+    num_epochs = 500
 
-    criterion = nn.BCELoss()
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-4)
+    criterion = nn.BCEWithLogitsLoss()
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
     # Training statistics
     iters, train_loss, train_acc, val_acc = [], [], [], []
@@ -45,14 +45,15 @@ def train(model, train_data_loader, val_data_loader, log_interval):
     try:
         for _ in range(num_epochs):
             for i, (data, targets) in enumerate(train_data_loader):
-                # TODO: Modify shapes and types depending on how we structured data and targets
                 X = data
                 t = targets
 
-                z = model(X)
+                z = model(X).squeeze()
                 loss = criterion(z, t)
 
                 loss.backward()
+
+                print(loss.item())
                 optimizer.step()
                 optimizer.zero_grad()
 
@@ -61,7 +62,7 @@ def train(model, train_data_loader, val_data_loader, log_interval):
                 if iter_count % log_interval == 0:
                     iters.append(iter_count)
                     train_loss.append(loss.item())
-                    # TODO: Maybe pass data not data_loader
+
                     train_acc.append(accuracy(model, train_data_loader))
                     val_acc.append(accuracy(model, val_data_loader))
     finally:
@@ -80,16 +81,22 @@ def train(model, train_data_loader, val_data_loader, log_interval):
         plt.ylabel("Accuracy")
         plt.legend(["Train", "Validation"])
 
+        print(train_loss)
+        print(train_acc)
+        print(val_acc)
+
 
 def test_correct():
     dataset = load_dataset()
     total_size = len(dataset)
-    print(dataset[:100])
-    train_loader = DataLoader(dataset[:100], batch_size=64, shuffle=True)
+    x = 50
+    dataset, _ = random_split(dataset, [x, len(dataset) - x])
+    print(len(dataset))
+    train_loader = DataLoader(dataset, batch_size=50, shuffle=True)
 
-    model = BaseModel(input_dim=9, hidden_dim=50, num_layers=3)
+    model = BaseModel(input_dim=9, hidden_dim=1000, num_layers=2)
 
-    train(model, train_loader, train_loader, 2)
+    train(model, train_loader, train_loader, 1)
 
 
 def setup():
@@ -109,11 +116,10 @@ def setup():
 
     # Create model
     model = BaseModel(input_dim=9, hidden_dim=50, num_layers=3)
-
     print(accuracy(model, val_loader))
 
 
 if __name__ == '__main__':
-    #setup()
-    test_correct()
+    setup()
+    # test_correct()
 
