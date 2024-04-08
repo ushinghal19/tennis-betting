@@ -15,8 +15,9 @@ class TennisDataset(Dataset):
         # Convert the features and labels into numpy arrays if they're not already
         features_np = features_df.to_numpy().astype(np.float32)
         # Converts winners to a binary format where 1 is Player 1 won, 0 otherwise
-        labels_np = (target_array == features_df['Player 1'].values).astype(np.float32)
-
+        # labels_np = (target_array == features_df['Player 1'].values).astype(np.float32)
+        labels_np = target_array.astype(np.float32)
+        
         # Convert numpy arrays to PyTorch tensors
         self.features = torch.tensor(features_np)
         self.labels = torch.tensor(labels_np)
