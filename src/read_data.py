@@ -31,7 +31,7 @@ class TennisDataset(Dataset):
 
 
 def read_data():
-    directory = '../data'
+    directory = 'data'
     all_filenames = sorted([os.path.join(directory, f) for f in os.listdir(directory) if f.endswith('.csv')])
     df_list = []
 
@@ -45,7 +45,6 @@ def read_data():
 
 
 def process_data():
-    """Processes data for model one, returns a dataframe of features and an array of target winners"""
     df = read_data()
 
     columns_to_keep = [
@@ -55,18 +54,25 @@ def process_data():
 
     df_selected = df[columns_to_keep].copy()
 
+    # Update mappings before shuffling and dropping
+    df_selected['Court'] = df_selected['Court'].map({'Indoor': float(1), 'Outdoor': float(0)})
+    df_selected['Surface'] = df_selected['Surface'].map({'Hard': float(3), 'Clay': float(2), 'Carpet': float(1), 'Grass': float(0)})
+    df_selected['Series'] = df_selected['Series'].map({'Grand Slam': float(3), 'Masters': float(2), 'International': float(1), 'International Gold': float(0)})
+
     def shuffle_row(row):
         if np.random.rand() > 0.5:
-            return pd.Series([row['Winner'], row['Loser'], row['WRank'], row['LRank'], row['WPts'], row['LPts']])
+            return pd.Series([row['Winner'], row['Loser'], row['WRank'], row['LRank'], row['WPts'], row['LPts']], index=['Player 1', 'Player 2', 'Rank 1', 'Rank 2', 'Pts 1', 'Pts 2'])
         else:
-            return pd.Series([row['Loser'], row['Winner'], row['LRank'], row['WRank'], row['LPts'], row['WPts']])
+            return pd.Series([row['Loser'], row['Winner'], row['LRank'], row['WRank'], row['LPts'], row['WPts']], index=['Player 1', 'Player 2', 'Rank 1', 'Rank 2', 'Pts 1', 'Pts 2'])
 
+    # Apply shuffling
     df_selected[['Player 1', 'Player 2', 'Rank 1', 'Rank 2', 'Pts 1', 'Pts 2']] = df_selected.apply(shuffle_row, axis=1)
 
-    target_array = df_selected['Winner'].values
+    # Extract target array based on shuffled data
+    target_array = (df_selected['Player 1'] == df_selected['Winner']).astype(float).values
 
-    features_df = df_selected.drop(['Winner', 'Loser', 'WRank', 'LRank', 'WPts', 'LPts',
-                                    'Player 1', 'Player 2'], axis=1)
+    # Drop columns after all operations to ensure correct data flow
+    features_df = df_selected.drop(['Winner', 'Loser', 'Player 1', 'Player 2', 'Date', 'Round', 'Location', 'Tournament'], axis=1)
 
     return features_df, target_array
 
