@@ -45,6 +45,19 @@ def read_data():
     return combined_df
 
 
+def assign_unique_numbers(df):
+    # Concatenate both columns to get a single series with all player names
+    all_players = pd.concat([df['Player 1'], df['Player 2']], ignore_index=True)
+
+    # Factorize the combined list of player names
+    labels, unique_players = pd.factorize(all_players)
+
+    # Create a mapping from player names to the labels
+    player_to_number = pd.Series(labels, index=all_players).to_dict()
+
+    return player_to_number
+
+
 def process_data(drop_winner_rank=True):
     df = read_data()
 
@@ -74,10 +87,14 @@ def process_data(drop_winner_rank=True):
 
     df_selected = df_selected.dropna() # this removes rows with a NaN (only 130 of them)
 
+    player_to_number = assign_unique_numbers(df_selected)
+
     # Extract target array based on shuffled data
     target_array = (df_selected['Player 1'] == df_selected['Winner']).astype(float).values
 
-    features_df = df_selected.drop(['Winner', 'Loser', "WRank", "LRank", "WPts", "LPts", 'Player 1', 'Player 2', 'Date', 'Round', 'Location', 'Tournament'], axis=1)
+    features_df = df_selected.drop(['Winner', 'Loser', "WRank", "LRank", "WPts", "LPts", 'Date', 'Round', 'Location', 'Tournament'], axis=1)
+    features_df['Player 1'] = features_df['Player 1'].map(player_to_number)
+    features_df['Player 2'] = features_df['Player 2'].map(player_to_number)
         
     return features_df, target_array
 
