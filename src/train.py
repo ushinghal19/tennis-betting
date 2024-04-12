@@ -39,7 +39,7 @@ def train(train_data_loader, val_data_loader, log_interval, **kwargs):
     num_layers = kwargs['num_layers']
     hidden_dim = kwargs['hidden_dim']
 
-    model = BaseModel(input_dim=9, hidden_dim=hidden_dim, num_layers=num_layers)
+    model = BaseModel(input_dim=11, hidden_dim=hidden_dim, num_layers=num_layers)
 
     criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
@@ -50,7 +50,7 @@ def train(train_data_loader, val_data_loader, log_interval, **kwargs):
     os.makedirs(path, exist_ok=True)
 
     # Training statistics
-    iters, train_loss, train_acc, val_acc = [], [], [], []
+    iters, train_loss, val_acc = [], [], []
     iter_count = 0
 
     try:
@@ -73,7 +73,6 @@ def train(train_data_loader, val_data_loader, log_interval, **kwargs):
                     iters.append(iter_count)
                     train_loss.append(loss.item())
 
-                    train_acc.append(accuracy(model, train_data_loader))
                     val_acc.append(accuracy(model, val_data_loader))
 
                     if iter_count % log_interval * 2 == 0:
@@ -90,17 +89,16 @@ def train(train_data_loader, val_data_loader, log_interval, **kwargs):
         plt.xlabel("Iterations")
         plt.ylabel("Loss")
 
-        plt.show()
+        plt.savefig(f'{path}/train_loss.png')
 
         plt.figure()
-        plt.plot(iters[:len(train_acc)], train_acc)
         plt.plot(iters[:len(val_acc)], val_acc)
         plt.title("Accuracy over iterations")
         plt.xlabel("Iterations")
         plt.ylabel("Accuracy")
         plt.legend(["Train", "Validation"])
 
-        plt.show()
+        plt.savefig(f'{path}/accuracy.png')
 
 
 def grid_search(log_interval, **kwargs):
@@ -157,8 +155,8 @@ def get_dataloaders():
 
 def setup():
     grid_search_vals = {
-        'lr': [0.00005, 0.0001, 0.001],
-        'hidden_dim': [50, 100, 200, 500],
+        'lr': [0.0001, 0.001],
+        'hidden_dim': [50, 100, 200, 1000],
         'num_layers': [2, 3, 5]
     }
 
@@ -166,15 +164,8 @@ def setup():
 
 
 if __name__ == '__main__':
-    # setup()
+    setup()
     # test_correct()
-    grid_search_vals = {
-        'lr': [0.0001],
-        'hidden_dim': [1000],
-        'num_layers': [2]
-    }
-
-    grid_search(1000, **grid_search_vals)
 
 
 
