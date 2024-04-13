@@ -75,58 +75,69 @@ class BettingStrategyAttnModel(nn.Module):
 
 # Example of creating the model
 # model = BettingStrategyAttnModel(hidden_dim=128, num_layers=2, input_dim=4, num_heads=2)
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 class LossWithExpectedValues(nn.Module):
     def __init__(self):
         super(LossWithExpectedValues, self).__init__()
 
-    def forward(self, outputs, targets, bet_odds):
+    def forward(self, inputs, targets):
         """
         Parameters:
-        outputs : Tensor - The logits from the neural network.
-        targets : Tensor - The actual labels (0 for P1 wins, 1 for P2 wins).
-        bet_odds : Tensor - The odds associated with each bet option ([odds P1, odds P2]).
+        inputs : Tensor - The logits from the neural network; each row should contain (odds_p1, odds_p2, prob_p1, prob_p2)
+        targets : Tensor - The actual labels (1 for P1 wins, 0 for P2 wins).
         
         Returns:
         torch.Tensor - Calculated loss.
         """
-        # Calculate softmax to get probabilities
-        probs = F.softmax(outputs, dim=1)
-        
-        # Indices of the actual winning odds
-        actual_odds = torch.gather(bet_odds, 1, targets.unsqueeze(1)).squeeze()
+        odds_p1 = inputs[:, 0]
+        odds_p2 = inputs[:, 1]
+        probs_p1 = inputs[:, 2]
+        probs_p2 = inputs[:, 3]
         
         # Expected return for choosing each option:
         expected_returns = torch.stack([
-            bet_odds[:, 0] * probs[:, 0],  # Expected return if bet on P1
-            bet_odds[:, 1] * probs[:, 1],  # Expected return if bet on P2
-            torch.zeros_like(probs[:, 0])  # Expected return if no bet
+            odds_p1 * probs_p1,  # Expected return if bet on P1
+            odds_p2 * probs_p2,  # Expected return if bet on P2
+            torch.zeros_like(probs_p1)  # Expected return if no bet
         ], dim=1)
         
-        # Calculate the negative of expected returns as losses
+        # Negative expected returns as losses
         losses = -expected_returns
         
-        # Collect the loss corresponding to the chosen action
+        # Actual odds based on the winner
+        actual_odds = torch.where(targets == 1, odds_p1, odds_p2)
+        
+        # Collect the loss corresponding to the actual outcome
         chosen_losses = torch.gather(losses, 1, targets.unsqueeze(1)).squeeze()
         
         # Mean loss across the batch
         return chosen_losses.mean()
-    
 
 class LossFunctionSingleBet(nn.Module):
     def __init__(self):
         super(LossFunctionSingleBet, self).__init__()
 
-    def forward(self, outputs, targets, bet_odds):
+    def forward(self, inputs, targets):
         """
         Calculate loss directly based on the decision taken.
         """
-        probs = F.softmax(outputs, dim=1)
-        _, predicted_ids = torch.max(probs, dim=1)  # Get the most likely bet
-
+        odds_p1 = inputs[:, 0]
+        odds_p2 = inputs[:, 1]
+        probs_p1 = inputs[:, 2]
+        probs_p2 = inputs[:, 3]
+        
+        # Calculate softmax for decision probabilities between P1 and P2
+        probs = F.softmax(torch.stack([probs_p1, probs_p2], dim=1), dim=1)
+        
+        # Get the most likely bet
+        _, predicted_ids = torch.max(probs, dim=1)
+        
         # Gather the odds and the decisions
-        chosen_odds = torch.gather(bet_odds, 1, predicted_ids.unsqueeze(1)).squeeze()
-
+        chosen_odds = torch.where(predicted_ids == 0, odds_p1, odds_p2)
+        
         # Calculate direct outcomes
         win_mask = predicted_ids == targets
         loss_mask = ~win_mask
