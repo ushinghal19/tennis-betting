@@ -32,7 +32,7 @@ class TennisDataset(Dataset):
 
 
 def read_data():
-    directory = 'data'
+    directory = '../data'
     all_filenames = sorted([os.path.join(directory, f) for f in os.listdir(directory) if f.endswith('.csv')])
     df_list = []
 
@@ -63,7 +63,8 @@ def process_data(drop_winner_rank=True):
 
     columns_to_keep = [
         'ATP', 'Location', 'Tournament', 'Date', 'Series', 'Winner', 'Loser',
-        'Court', 'Surface', 'Round', 'Best of', 'WRank', 'LRank', 'WPts', 'LPts'
+        'Court', 'Surface', 'Round', 'Best of', 'WRank', 'LRank', 'WPts', 'LPts',
+        'B365W', 'B365L'
     ]
 
     df_selected = df[columns_to_keep].copy()
@@ -78,12 +79,12 @@ def process_data(drop_winner_rank=True):
 
     def shuffle_row(row):
         if np.random.rand() > 0.5:
-            return pd.Series([row['Winner'], row['Loser'], row['WRank'], row['LRank'], row['WPts'], row['LPts']], index=['Player 1', 'Player 2', 'Rank 1', 'Rank 2', 'Pts 1', 'Pts 2'])
+            return pd.Series([row['Winner'], row['Loser'], row['WRank'], row['LRank'], row['WPts'], row['LPts'], row['B365W'], row['B365L']], index=['Player 1', 'Player 2', 'Rank 1', 'Rank 2', 'Pts 1', 'Pts 2', 'Player 1 B365 Odds', 'Player 2 B365 Odds'])
         else:
-            return pd.Series([row['Loser'], row['Winner'], row['LRank'], row['WRank'], row['LPts'], row['WPts']], index=['Player 1', 'Player 2', 'Rank 1', 'Rank 2', 'Pts 1', 'Pts 2'])
+            return pd.Series([row['Loser'], row['Winner'], row['LRank'], row['WRank'], row['LPts'], row['WPts'], row['B365L'], row['B365W']], index=['Player 1', 'Player 2', 'Rank 1', 'Rank 2', 'Pts 1', 'Pts 2', 'Player 1 B365 Odds', 'Player 2 B365 Odds'])
 
     # Apply shuffling
-    df_selected[['Player 1', 'Player 2', 'Rank 1', 'Rank 2', 'Pts 1', 'Pts 2']] = df_selected.apply(shuffle_row, axis=1)
+    df_selected[['Player 1', 'Player 2', 'Rank 1', 'Rank 2', 'Pts 1', 'Pts 2', 'Player 1 B365 Odds', 'Player 2 B365 Odds']] = df_selected.apply(shuffle_row, axis=1)
 
     df_selected = df_selected.dropna() # this removes rows with a NaN (only 130 of them)
 
@@ -92,7 +93,9 @@ def process_data(drop_winner_rank=True):
     # Extract target array based on shuffled data
     target_array = (df_selected['Player 1'] == df_selected['Winner']).astype(float).values
 
-    features_df = df_selected.drop(['Winner', 'Loser', "WRank", "LRank", "WPts", "LPts", 'Date', 'Round', 'Location', 'Tournament'], axis=1)
+    df_selected['Date'] = pd.to_datetime(df_selected['Date']).dt.year
+
+    features_df = df_selected.drop(['Winner', 'Loser', "WRank", "LRank", "WPts", "LPts", 'Round', 'Location', 'Tournament', 'B365W', 'B365L'], axis=1)
     features_df['Player 1'] = features_df['Player 1'].map(player_to_number)
     features_df['Player 2'] = features_df['Player 2'].map(player_to_number)
         
