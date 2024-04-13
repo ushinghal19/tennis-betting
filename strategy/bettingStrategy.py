@@ -8,7 +8,9 @@ def get_transformed_dataloaders(model):
     """
     Get the data loaders that will be used as input to the betting strategy model.
     :param model: Optimal model chosen for predicting tennis matches.
-    :return: Train, val, and test data loaders for betting strategy model.
+    :return: Train, val, and test data loaders for betting strategy model. Each data
+             instance includes (Bet365 Odds P1, Bet365 Odds P2, Prob P1 Wins, Prob P2 Wins).
+             The labels are (1 if P1 wins, 0 if P2 wins).
     """
     train_loader, val_loader, test_loader = get_dataloaders()
 
