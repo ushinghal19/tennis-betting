@@ -3,33 +3,41 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class BettingStrategyModel(nn.Module):
-    def __init__(self, hidden_dim, num_layers, input_dim=4):
+    def __init__(self, hidden_dim, num_layers, input_dim=4, dropout=False):
         super(BettingStrategyModel, self).__init__()
         self.fc1 = nn.Linear(input_dim, hidden_dim)
         self.relu = nn.ReLU()
+        
+        self.use_dropout = dropout
+        self.dropout = nn.Dropout(0.25)
+
         self.hidden_layers = nn.ModuleList([nn.Linear(hidden_dim, hidden_dim) for _ in range(num_layers-1)])
         self.fc2 = nn.Linear(hidden_dim, 3)
 
     def forward(self, x):
-        y = x
         x = self.fc1(x)
         x = self.relu(x)
 
         for hidden_layer in self.hidden_layers:
             x = hidden_layer(x)
             x = self.relu(x)
+            if self.use_dropout:
+                x = self.dropout(x)
 
         x = self.fc2(x)
         return x
 
 
 class BettingStrategyAttnModel(nn.Module):
-    def __init__(self, hidden_dim, num_layers, input_dim=4, num_heads=2):
+    def __init__(self, hidden_dim, num_layers, input_dim=4, num_heads=2, dropout=False):
         super(BettingStrategyAttnModel, self).__init__()
         self.fc1 = nn.Linear(input_dim, hidden_dim)
         self.relu = nn.ReLU()
         self.hidden_layers = nn.ModuleList([nn.Linear(hidden_dim, hidden_dim) for _ in range(num_layers - 1)])
         self.fc2 = nn.Linear(hidden_dim, 3)
+
+        self.use_dropout = dropout
+        self.dropout = nn.Dropout(0.25)
 
         # Multi-head self-attention layer
         self.attention = nn.MultiheadAttention(embed_dim=hidden_dim, num_heads=num_heads)
@@ -44,6 +52,8 @@ class BettingStrategyAttnModel(nn.Module):
         for hidden_layer in self.hidden_layers:
             x = hidden_layer(x)
             x = self.relu(x)
+            if self.use_dropout:
+                x = self.dropout(x)
 
         # Prepare x for attention (requires shape [seq_len, batch, features])
         # Here we treat the last dimension of x as seq_len for attention.
