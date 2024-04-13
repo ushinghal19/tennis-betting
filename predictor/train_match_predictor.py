@@ -4,11 +4,12 @@ Training Module.
 import torch.nn as nn
 import torch.optim as optim
 import matplotlib.pyplot as plt
-from read_data import TennisDataset, load_dataset
+from predictor.BaseModel import BaseModel
+from predictor.read_data import TennisDataset, load_dataset
 from torch.utils.data import DataLoader
 from torch.utils.data.dataset import random_split
 import torch
-from BaseModel import BaseModel
+
 import os
 import random
 
@@ -183,5 +184,3 @@ if __name__ == '__main__':
 
     # Uncomment to run grid search over many hyperparmeter choices
     # setup()
-
-
