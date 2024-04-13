@@ -163,9 +163,22 @@ def setup():
     grid_search(1000, **grid_search_vals)
 
 
-if __name__ == '__main__':
-    setup()
-    # test_correct()
+def eval_final_model(path_to_model, **kwargs):
+    model = BaseModel(input_dim=11, hidden_dim=kwargs['hidden_dim'], num_layers=kwargs['num_layers'])
+    model.load_state_dict(torch.load(path_to_model))
 
+    _, _, test_loader = get_dataloaders()
+    return accuracy(model, test_loader)
+
+
+if __name__ == '__main__':
+    # For deterministic splitting of datasets
+    torch.manual_seed(42)
+
+    # Uncomment to test training code correctness (can overfit on small dataset)
+    # test_correctness()
+
+    # Uncomment to run grid search over many hyperparmeter choices
+    setup()
 
 
