@@ -120,20 +120,14 @@ class LossFunctionSingleBet(nn.Module):
     def __init__(self):
         super(LossFunctionSingleBet, self).__init__()
 
-    def forward(self, inputs, targets):
+    def forward(self, outputs, targets, odds_p1, odds_p2):
         """
         Calculate loss directly based on the decision taken.
         """
-        odds_p1 = inputs[:, 0]
-        odds_p2 = inputs[:, 1]
-        probs_p1 = inputs[:, 2]
-        probs_p2 = inputs[:, 3]
-        
         # Calculate softmax for decision probabilities between P1 and P2
-        probs = F.softmax(torch.stack([probs_p1, probs_p2], dim=1), dim=1)
+        probs = F.softmax(outputs, dim=1)
         
         # Get the most likely bet
-        # _, predicted_ids = torch.max(probs, dim=1)
         predicted_ids = torch.argmax(probs, dim=1)
         
         # Gather the odds and the decisions
@@ -142,18 +136,50 @@ class LossFunctionSingleBet(nn.Module):
         # Calculate direct outcomes
         # Recall: Predicted_id of 0 and target of 1 -> win, and pred_id of 1 and target of 0 -> win
         win_mask = predicted_ids == (1 - targets)
-        loss_mask = ~win_mask
+        loss_mask = predicted_ids == targets
+        no_bet_mask = predicted_ids == 2
 
         # Bet results
         bet_results = torch.zeros_like(chosen_odds)
         bet_results[win_mask] = chosen_odds[win_mask] - 1  # profit on wins
         bet_results[loss_mask] = -1  # loss on losses
-
-        # Go through and ensure all "no bets" are not bet on
-        # Before this step, the torch.where does not discriminate between no bets and bets.
-        # Need to account for that now.
-        no_bet_mask = predicted_ids == 2
         bet_results[no_bet_mask] = 0
 
         # Negative since we minimize loss
         return -bet_results.mean()
+
+
+class CustomLoss(nn.Module):
+    def __init__(self):
+        super(CustomLoss, self).__init__()
+
+    def forward(self, outputs, targets, odds_p1, odds_p2):
+        """
+        Calculate loss directly based on the decision taken.
+        """
+        # Apply softmax to get probabilities for each class
+        probs = F.softmax(outputs, dim=1)
+
+        # Calculate expected profits when correct:
+        #   - If bet on P1 and P1 wins, profit = (odds_p1 - 1) * probability of betting on P1
+        #   - If bet on P2 and P2 wins, profit = (odds_p2 - 1) * probability of betting on P2
+        #   - If the model learns to bet on no bet, then probs[i, 0] = probs[i, 1] = 0 and there's no financial impact
+        # Recall: probs[:, 0] -> bet on p1, target = 1 -> p1 won
+        #         probs[:, 1] -> bet on p2, target = 0 -> p2 won
+        expected_profits = (probs[:, 0] * (targets == 1).float() * (odds_p1 - 1)) + (probs[:, 1] * (targets == 0).float() * (odds_p2 - 1))
+        
+        # Calculate total profit that was possible
+        total_possible_profit = ((targets == 1).float() * (odds_p1 - 1)) + ((targets == 0).float() * (odds_p2 - 1))
+
+        # Calculate incurred losses when wrong:
+        # #   - Loss is modeled as -1 times the probability of having made the wrong decision
+        # losses = -1.0 * ((probs[:, 0] * (targets == 0).float()) + (probs[:, 1] * (targets == 1).float()))
+        # 
+        # # Sum the expected profits and the incurred losses
+        # bet_results = expected_profits + losses
+
+        # # Return the negative mean of results since we minimize the loss
+        # return -bet_results.mean()
+
+        # Return MSE loss between total possible profit and expected model profits
+        return F.mse_loss(expected_profits, total_possible_profit)
