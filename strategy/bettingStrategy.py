@@ -88,7 +88,7 @@ def evaluate(model, data_loader):
                 # Check if we bet on the winner
                 if chosen_bet == winner_prob_idx:
                     # batch_data[i, winner_prob_idx] = Bet365 odds for winner
-                    # Profit = Stake x (Odds - 1)
+                    # Profit = Stake x (Odds - 1) = Odds - 1 ; (stake = $1)
                     total_profit += batch_data[i, winner_prob_idx].item() - 1
                 # Otherwise, we lost our stake ($1)
                 else:

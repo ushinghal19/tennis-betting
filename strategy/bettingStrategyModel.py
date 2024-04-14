@@ -133,13 +133,15 @@ class LossFunctionSingleBet(nn.Module):
         probs = F.softmax(torch.stack([probs_p1, probs_p2], dim=1), dim=1)
         
         # Get the most likely bet
-        _, predicted_ids = torch.max(probs, dim=1)
+        # _, predicted_ids = torch.max(probs, dim=1)
+        predicted_ids = torch.argmax(probs, dim=1)
         
         # Gather the odds and the decisions
         chosen_odds = torch.where(predicted_ids == 0, odds_p1, odds_p2)
         
         # Calculate direct outcomes
-        win_mask = predicted_ids == targets
+        # Recall: Predicted_id of 0 and target of 1 -> win, and pred_id of 1 and target of 0 -> win
+        win_mask = predicted_ids == (1 - targets)
         loss_mask = ~win_mask
 
         # Bet results
@@ -147,4 +149,11 @@ class LossFunctionSingleBet(nn.Module):
         bet_results[win_mask] = chosen_odds[win_mask] - 1  # profit on wins
         bet_results[loss_mask] = -1  # loss on losses
 
-        return -bet_results.mean()  # Negative since we minimize loss
+        # Go through and ensure all "no bets" are not bet on
+        # Before this step, the torch.where does not discriminate between no bets and bets.
+        # Need to account for that now.
+        no_bet_mask = predicted_ids == 2
+        bet_results[no_bet_mask] = 0
+
+        # Negative since we minimize loss
+        return -bet_results.mean()
