@@ -62,7 +62,7 @@ def evaluate(model, data_loader):
     model.eval()  # Set the model to evaluation mode
 
     total_profit = 0.0
-    number_of_bets = 0
+    num_bets = 0
 
     with torch.no_grad():
         for batch_data, batch_labels in data_loader:
@@ -94,14 +94,14 @@ def evaluate(model, data_loader):
                 else:
                     total_profit -= 1
 
-                number_of_bets += 1
+                num_bets += 1
 
-    avg_profit = total_profit / number_of_bets if number_of_bets > 0 else 0
+    avg_profit = total_profit / num_bets if num_bets > 0 else 0
 
     if reset_training:
         model.train()
 
-    return total_profit, avg_profit, number_of_bets
+    return total_profit, avg_profit, num_bets
 
 
 if __name__ == '__main__':
