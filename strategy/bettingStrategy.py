@@ -258,18 +258,10 @@ def grid_search(log_interval, **kwargs):
 
 
 if __name__ == '__main__':
-    # grid_search_vals = {
-    #     'lr': [0.0001],
-    #     'hidden_dim': [25, 50, 100, 200, 1000],
-    #     'num_layers': [2, 3, 4, 5]
-    # }
-    #
-    # grid_search(250, **grid_search_vals)
-
     grid_search_vals = {
         'lr': [0.0001],
-        'hidden_dim': [50],
-        'num_layers': [7]
+        'hidden_dim': [25, 50, 100, 200, 1000],
+        'num_layers': [2, 3, 4, 5]
     }
 
     grid_search(250, **grid_search_vals)
