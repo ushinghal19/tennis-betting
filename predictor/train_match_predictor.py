@@ -61,6 +61,8 @@ def train(train_data_loader, val_data_loader, log_interval, **kwargs):
     iters, train_loss, val_acc = [], [], []
     iter_count = 0
 
+    model.train()
+
     try:
         for epoch in range(num_epochs):
             for i, (data, targets) in enumerate(train_data_loader):
@@ -149,7 +151,8 @@ def get_dataloaders():
     test_size = total_size - train_size - val_size  # 15% for test (remainder)
 
     # Splitting the dataset
-    train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size])
+    train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size],
+                                                            generator=torch.Generator().manual_seed(42))
 
     # Creating DataLoaders for each set
     train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True)

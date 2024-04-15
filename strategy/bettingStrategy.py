@@ -1,19 +1,19 @@
 from torch.utils.data import DataLoader, TensorDataset
 import torch
-import torch.nn.functional as F
 import torch.optim as optim
 import matplotlib.pyplot as plt
 import os
 from predictor.train_match_predictor import get_dataloaders
 from predictor.BaseModel import BaseModel
 from strategy.bettingStrategyModel import BettingStrategyModel, CustomLoss
+from torch.utils.data.dataset import random_split
 
 def get_transformed_dataloaders(model):
     """
     Get the data loaders that will be used as input to the betting strategy model.
     :param model: Optimal model chosen for predicting tennis matches.
     :return: Train, val, and test data loaders for betting strategy model. Each data
-             instance includes (Bet365 Odds P1, Bet365 Odds P2, Prob P1 Wins, Prob P2 Wins).
+             instance includes (Bet365 Odds P1, Bet365 Odds P2, Prob P1 Wins).
              The labels are (1 if P1 wins, 0 if P2 wins).
     """
     train_loader, val_loader, test_loader = get_dataloaders()
@@ -32,7 +32,7 @@ def get_transformed_dataloaders(model):
                 last_column = X[:, -1:]  # Last column
 
                 # Combine the desired features into one tensor
-                combined_features = torch.cat((second_last_column, last_column, output, 1 - output), dim=1)
+                combined_features = torch.cat((second_last_column, last_column, output), dim=1)
                 features.append(combined_features)
 
                 # Collect targets
@@ -56,7 +56,7 @@ def get_transformed_dataloaders(model):
     return train_loader, val_loader, test_loader
 
 
-def evaluate(model, data_loader):
+def evaluate(model, data_loader, debug=False):
     """
     Evaluate our model on a Data Loader. Returns a tuple containing (total profit, avg profit, number of bets made).
     """
@@ -69,11 +69,17 @@ def evaluate(model, data_loader):
     with torch.no_grad():
         for batch_data, batch_labels in data_loader:
             output = model(batch_data)
-            probabilities = F.softmax(output, dim=1)  # Apply softmax to convert outputs to probabilities
+
+            if debug:
+                print(output)
+                print(batch_labels)
 
             # Get bets to place
             # Done using indices of highest prob. outcomes (0 for p1, 1 for p2, 2 for no bet)
-            bets = torch.argmax(probabilities, dim=1)
+            bets = torch.argmax(output, dim=1)
+
+            if debug:
+                print(bets)
 
             for i in range(len(bets)):
                 actual_winner = int(batch_labels[i].item())
@@ -82,6 +88,10 @@ def evaluate(model, data_loader):
                 winner_prob_idx = 1 - actual_winner
 
                 chosen_bet = bets[i].item()
+
+                if debug:
+                    print(f'Bet on {chosen_bet}, winner = {winner_prob_idx} (actual_winner = {actual_winner})')
+                    print(f'Odds P1: {batch_data[i, 0]}, Odds P2: {batch_data[i, 1]}')
 
                 # Skip bets where model chooses not to bet
                 if chosen_bet == 2:
@@ -92,9 +102,13 @@ def evaluate(model, data_loader):
                     # batch_data[i, winner_prob_idx] = Bet365 odds for winner
                     # Profit = Stake x (Odds - 1) = Odds - 1 ; (stake = $1)
                     total_profit += batch_data[i, winner_prob_idx].item() - 1
+                    if debug:
+                        print(f'Profit changed by: {batch_data[i, winner_prob_idx].item() - 1}')
                 # Otherwise, we lost our stake ($1)
                 else:
                     total_profit -= 1
+                    if debug:
+                        print(f'Profit changed by: -1')
 
                 num_bets += 1
 
@@ -103,29 +117,37 @@ def evaluate(model, data_loader):
     if reset_training:
         model.train()
 
+    if debug:
+        print(f'Final: {total_profit, avg_profit, num_bets}')
+
     return total_profit, avg_profit, num_bets
 
 
 def train(train_data_loader, val_data_loader, log_interval, **kwargs):
-    print('Training...')
     learning_rate = kwargs['lr']
     num_epochs = kwargs['num_epochs']
     num_layers = kwargs['num_layers']
     hidden_dim = kwargs['hidden_dim']
-    use_dropout = kwargs['use_dropout']
 
-    model = BettingStrategyModel(input_dim=4, hidden_dim=hidden_dim, num_layers=num_layers, dropout=use_dropout)
+    model = BettingStrategyModel(input_dim=3, hidden_dim=hidden_dim, num_layers=num_layers)
+
+    total_profit, avg_profit, num_bets = evaluate(model, val_data_loader)
+    print(f'[Initial] Total profit: {total_profit}')
+    print(f'[Initial] Average profit: {avg_profit}')
+    print(f'[Initial] Bets placed: {num_bets} / {len(val_data_loader.dataset)}\n')
 
     criterion = CustomLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
     # Make directory to store this model
-    # path = f'../models/betting/lr{learning_rate}_l{num_layers}_hd{hidden_dim}_drop{use_dropout}'
-    # os.makedirs(path, exist_ok=True)
+    path = f'../models/betting/lr{learning_rate}_l{num_layers}_hd{hidden_dim}'
+    os.makedirs(path, exist_ok=True)
 
     # Training statistics
-    iters, train_loss, val_acc = [], [], []
+    iters, train_loss, total_profit_lst, avg_profit_lst, num_bets_lst = [], [], [], [], []
     iter_count = 0
+
+    model.train()
 
     try:
         for epoch in range(num_epochs):
@@ -135,34 +157,30 @@ def train(train_data_loader, val_data_loader, log_interval, **kwargs):
 
                 z = model(X)
                 # X[:, 0] = odds for p1, X[:, 1] = odds for p2
-                loss = criterion(z, t, X[:, 0].clone().detach(), X[:, 1].clone().detach())
+                loss = criterion(z, t, X[:, 0].clone().detach(), X[:, 1].clone().detach(), X[:, 2].clone().detach())
 
                 loss.backward()
 
                 optimizer.step()
                 optimizer.zero_grad()
 
-                iter_count += 1
-
                 if iter_count % log_interval == 0:
-                    iters.append(iter_count)
+                    iters.append(iter_count + 1)
                     train_loss.append(loss.item())
                     total_profit, avg_profit, num_bets = evaluate(model, val_data_loader)
-                    # val_acc.append(evaluate(model, val_data_loader))
+                    total_profit_lst.append(total_profit)
+                    avg_profit_lst.append(avg_profit)
+                    num_bets_lst.append(num_bets)
 
-                    if iter_count % log_interval * 8 == 0:
-                        print(f'Train loss: {loss.item()}')
-                        print(f'Total profit: {total_profit}')
-                        print(f'Average profit: {avg_profit}')
-                        print(f'Bets placed: {num_bets} / {len(val_data_loader.dataset)}')
+                iter_count += 1
 
             # Save model every epoch
-            # print(f'[Epoch: {epoch + 1}] Train loss: {loss.item()}')
-            # total_profit, avg_profit, num_bets = evaluate(model, val_data_loader)
-            # print(f'[Epoch: {epoch + 1}] Total profit: {total_profit}')
-            # print(f'[Epoch: {epoch + 1}] Average profit: {avg_profit}')
-            # print(f'[Epoch: {epoch + 1}] Bets placed: {num_bets} / {len(val_data_loader.dataset)}')
-            # torch.save(model.state_dict(), f'{path}/model_e{epoch + 1}.pth')
+            print(f'[Epoch: {epoch + 1}] Train loss: {loss.item()}')
+            total_profit, avg_profit, num_bets = evaluate(model, val_data_loader)
+            print(f'[Epoch: {epoch + 1}] Total profit: {total_profit}')
+            print(f'[Epoch: {epoch + 1}] Average profit: {avg_profit}')
+            print(f'[Epoch: {epoch + 1}] Bets placed: {num_bets} / {len(val_data_loader.dataset)}\n')
+            torch.save(model.state_dict(), f'{path}/model_e{epoch + 1}.pth')
     finally:
         # Plot data even if training is interrupted
         plt.figure()
@@ -171,35 +189,87 @@ def train(train_data_loader, val_data_loader, log_interval, **kwargs):
         plt.xlabel("Iterations")
         plt.ylabel("Loss")
 
-        # plt.savefig(f'{path}/train_loss.png')
+        plt.savefig(f'{path}/train_loss.png')
 
-        # plt.figure()
-        # plt.plot(iters[:len(val_acc)], val_acc, color='orange')
-        # plt.title("Validation accuracy over iterations")
-        # plt.xlabel("Iterations")
-        # plt.ylabel("Accuracy")
-        #
-        # plt.savefig(f'{path}/accuracy.png')
+        plt.figure()
+        plt.plot(iters[:len(total_profit_lst)], total_profit_lst, color='orange')
+        plt.title("Total profit over iterations")
+        plt.xlabel("Iterations")
+        plt.ylabel("Profit")
+
+        plt.savefig(f'{path}/total_profit.png')
+
+        plt.figure()
+        plt.plot(iters[:len(avg_profit_lst)], avg_profit_lst, color='orange')
+        plt.title("Average profit over iterations")
+        plt.xlabel("Iterations")
+        plt.ylabel("Profit")
+
+        plt.savefig(f'{path}/avg_profit.png')
+
+        plt.figure()
+        plt.plot(iters[:len(num_bets_lst)], num_bets_lst, color='green')
+        plt.title("Number of bets made over iterations")
+        plt.xlabel("Iterations")
+        plt.ylabel("Number of bets made")
+
+        plt.savefig(f'{path}/num_bets_made.png')
 
 
-if __name__ == '__main__':
+def test_correct(predictor_model):
+    dataset = get_transformed_dataloaders(predictor_model)[0].dataset
+    x = 50
+    dataset, _ = random_split(dataset, [x, len(dataset) - x], generator=torch.Generator().manual_seed(42))
+    print(len(dataset))
+    train_loader = DataLoader(dataset, batch_size=x, shuffle=True)
+
+    hyperparams = {
+        'lr': 0.001,
+        'hidden_dim': 1000,
+        'num_layers': 2,
+        'num_epochs': 300,
+        'use_dropout': False
+    }
+
+    train(train_loader, train_loader, log_interval=2, **hyperparams)
+
+
+def grid_search(log_interval, **kwargs):
+    # Grid search
     model_path = '../models/lr0.0005_l3_hd200/model_e93.pth'
     predictor_model = BaseModel(input_dim=14, hidden_dim=200, num_layers=3)
     predictor_model.load_state_dict(torch.load(model_path))
 
-    torch.manual_seed(42)
-
     train_loader, val_loader, test_loader, = get_transformed_dataloaders(predictor_model)
 
-    # betting_model = BettingStrategyModel(hidden_dim=50, num_layers=2)
-    # print(evaluate(betting_model, val_loader))
+    for num_layers in kwargs['num_layers']:
+        for hidden_dim in kwargs['hidden_dim']:
+            for lr in kwargs['lr']:
+                hyperparams = {
+                    'lr': lr,
+                    'hidden_dim': hidden_dim,
+                    'num_layers': num_layers,
+                    'num_epochs': 50,
+                }
+                print(f'Training hidden_dim={hidden_dim}, num_layers={num_layers}, lr={lr}')
+                print('---------------------------------------------------')
+                train(train_loader, val_loader, log_interval=log_interval, **hyperparams)
+                print('---------------------------------------------------\n')
 
-    hyperparams = {
-        'lr': 0.001,
-        'hidden_dim': 50,
-        'num_layers': 2,
-        'num_epochs': 50,
-        'use_dropout': False
+
+if __name__ == '__main__':
+    # grid_search_vals = {
+    #     'lr': [0.0001],
+    #     'hidden_dim': [25, 50, 100, 200, 1000],
+    #     'num_layers': [2, 3, 4, 5]
+    # }
+    #
+    # grid_search(250, **grid_search_vals)
+
+    grid_search_vals = {
+        'lr': [0.0001],
+        'hidden_dim': [50],
+        'num_layers': [7]
     }
 
-    train(train_loader, val_loader, log_interval=250, **hyperparams)
+    grid_search(250, **grid_search_vals)
