@@ -4,10 +4,13 @@ import torch.nn.functional as F
 
 
 class BettingStrategyModel(nn.Module):
-    def __init__(self, hidden_dim, num_layers, input_dim=3):
+    def __init__(self, hidden_dim, num_layers, input_dim=3, dropout=0.0):
         super(BettingStrategyModel, self).__init__()
         self.fc1 = nn.Linear(input_dim, hidden_dim)
         self.relu = nn.ReLU()
+
+        self.use_dropout = dropout > 0.0
+        self.dropout = nn.Dropout(dropout)
 
         self.hidden_layers = nn.ModuleList([nn.Linear(hidden_dim, hidden_dim) for _ in range(num_layers-1)])
         self.fc2 = nn.Linear(hidden_dim, 3)
@@ -16,9 +19,14 @@ class BettingStrategyModel(nn.Module):
         x = self.fc1(x)
         x = self.relu(x)
 
-        for hidden_layer in self.hidden_layers:
+        for i, hidden_layer in enumerate(self.hidden_layers):
             x = hidden_layer(x)
             x = self.relu(x)
+
+            # Do not use dropout right before fc2: dropout right before last layer
+            # can hurt performance: https://stats.stackexchange.com/questions/299292/dropout-makes-performance-worse
+            if self.use_dropout and i < len(self.hidden_layers) - 1:
+                x = self.dropout(x)
 
         x = self.fc2(x)
         return x
@@ -74,12 +82,15 @@ class CustomLoss(nn.Module):
         # (Inversely) scale penalty by bookmaker odds because if our model is confident
         # that a match is a toss-up but the bookmaker thinks someone will win, we should
         # bet on the other person (this is a bit risky, but could pan out well).
+        # Note: Numerical stability is fine: odds_p1, odds_p2 >= 1
+        # Note: 2 / ... is not arbitrary. We use 2 because if odds are similar
+        # 2 / (odds_p1 + odds_p2) is approx 1, but if not, it's < 1.
         no_clear_winner_penalty = torch.where(
             (prob_p1_win < 0.6) & (prob_p1_win > 0.4),
-            (1 - probs[:, 2]) * (1 + 1 / (probs[:, 0] + probs[:, 1]) + prob_p1_win),
+            (1 - probs[:, 2]) * (1 + 2 / (odds_p1 + odds_p2)),
             torch.zeros_like(probs[:, 2])
         ).sum()
 
         a = F.mse_loss(expected_profit, total_possible_profit)
         e = expected_profit.mean()
-        return a - e + obvious_winner_penalty + no_clear_winner_penalty
+        return a - e + obvious_winner_penalty + 5 * no_clear_winner_penalty

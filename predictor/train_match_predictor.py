@@ -20,8 +20,8 @@ def accuracy(model, data_loader):
     Evaluate model on a Data Loader.
     """
     reset_model = model.training
-
     model.eval()
+
     correct = 0
 
     # Disable gradient computation
@@ -176,6 +176,30 @@ def eval_final_model(path_to_model, **kwargs):
 
     _, _, test_loader = get_dataloaders()
     return accuracy(model, test_loader)
+
+
+def eval_baseline_model():
+    class BaselineModel(nn.Module):
+        """
+        Always predict higher ranking player to win. Note: Higher rank corresponds to
+        lower number (i.e., rank 1 player is ranked higher than rank 2 player).
+        """
+        def __init__(self):
+            super(BaselineModel, self).__init__()
+        def forward(self, X):
+            # Access the 9th column (index 8) and the 10th column (index 9)
+            # These represent the ranks
+            rankings_p1 = X[:, 8]
+            rankings_p2 = X[:, 9]
+
+            # Compare the two columns
+            predictions = (rankings_p1 <= rankings_p2).long()
+            return predictions.unsqueeze(0)
+
+    baseline_model = BaselineModel()
+    _, _, test_loader = get_dataloaders()
+
+    print(f'Performance on Test Set: {accuracy(baseline_model, test_loader)}')
 
 
 if __name__ == '__main__':
