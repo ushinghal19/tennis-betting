@@ -1,5 +1,6 @@
 from torch.utils.data import DataLoader, TensorDataset
 import torch
+import torch.nn as nn
 import torch.optim as optim
 import matplotlib.pyplot as plt
 import os
@@ -128,8 +129,9 @@ def train(train_data_loader, val_data_loader, log_interval, **kwargs):
     num_epochs = kwargs['num_epochs']
     num_layers = kwargs['num_layers']
     hidden_dim = kwargs['hidden_dim']
+    dropout = kwargs['dropout']
 
-    model = BettingStrategyModel(input_dim=3, hidden_dim=hidden_dim, num_layers=num_layers)
+    model = BettingStrategyModel(input_dim=3, hidden_dim=hidden_dim, num_layers=num_layers, dropout=dropout)
 
     total_profit, avg_profit, num_bets = evaluate(model, val_data_loader)
     print(f'[Initial] Total profit: {total_profit}')
@@ -140,8 +142,9 @@ def train(train_data_loader, val_data_loader, log_interval, **kwargs):
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
     # Make directory to store this model
-    path = f'../models/betting/lr{learning_rate}_l{num_layers}_hd{hidden_dim}'
+    path = f'../models/betting/lr{learning_rate}_l{num_layers}_hd{hidden_dim}_d{dropout}'
     os.makedirs(path, exist_ok=True)
+    stats_file = open(f'{path}/stats.txt', 'w')
 
     # Training statistics
     iters, train_loss, total_profit_lst, avg_profit_lst, num_bets_lst = [], [], [], [], []
@@ -156,7 +159,7 @@ def train(train_data_loader, val_data_loader, log_interval, **kwargs):
                 t = targets
 
                 z = model(X)
-                # X[:, 0] = odds for p1, X[:, 1] = odds for p2
+                # X[:, 0] = odds for p1, X[:, 1] = odds for p2, X[:, 2] = prob p1 wins
                 loss = criterion(z, t, X[:, 0].clone().detach(), X[:, 1].clone().detach(), X[:, 2].clone().detach())
 
                 loss.backward()
@@ -180,9 +183,16 @@ def train(train_data_loader, val_data_loader, log_interval, **kwargs):
             print(f'[Epoch: {epoch + 1}] Total profit: {total_profit}')
             print(f'[Epoch: {epoch + 1}] Average profit: {avg_profit}')
             print(f'[Epoch: {epoch + 1}] Bets placed: {num_bets} / {len(val_data_loader.dataset)}\n')
+
+            stats_file.write(f'[Epoch: {epoch + 1}] Train loss: {loss.item()}')
+            stats_file.write(f'[Epoch: {epoch + 1}] Total profit: {total_profit}')
+            stats_file.write(f'[Epoch: {epoch + 1}] Average profit: {avg_profit}')
+            stats_file.write(f'[Epoch: {epoch + 1}] Bets placed: {num_bets} / {len(val_data_loader.dataset)}\n')
             torch.save(model.state_dict(), f'{path}/model_e{epoch + 1}.pth')
     finally:
-        # Plot data even if training is interrupted
+        # Plot data and close files even if training is interrupted
+        stats_file.close()
+
         plt.figure()
         plt.plot(iters[:len(train_loss)], train_loss)
         plt.title("Loss over iterations")
@@ -228,7 +238,7 @@ def test_correct(predictor_model):
         'hidden_dim': 1000,
         'num_layers': 2,
         'num_epochs': 300,
-        'use_dropout': False
+        'dropout': 0.0
     }
 
     train(train_loader, train_loader, log_interval=2, **hyperparams)
@@ -245,23 +255,75 @@ def grid_search(log_interval, **kwargs):
     for num_layers in kwargs['num_layers']:
         for hidden_dim in kwargs['hidden_dim']:
             for lr in kwargs['lr']:
-                hyperparams = {
-                    'lr': lr,
-                    'hidden_dim': hidden_dim,
-                    'num_layers': num_layers,
-                    'num_epochs': 50,
-                }
-                print(f'Training hidden_dim={hidden_dim}, num_layers={num_layers}, lr={lr}')
-                print('---------------------------------------------------')
-                train(train_loader, val_loader, log_interval=log_interval, **hyperparams)
-                print('---------------------------------------------------\n')
+                for dropout in kwargs['dropout']:
+                    hyperparams = {
+                        'lr': lr,
+                        'hidden_dim': hidden_dim,
+                        'num_layers': num_layers,
+                        'num_epochs': 50,
+                        'dropout': dropout,
+                    }
+                    print(f'Training hidden_dim={hidden_dim}, num_layers={num_layers}, lr={lr}')
+                    print('---------------------------------------------------')
+                    train(train_loader, val_loader, log_interval=log_interval, **hyperparams)
+                    print('---------------------------------------------------\n')
+
+
+def get_predictor_model():
+    model_path = '../models/lr0.0005_l3_hd200/model_e93.pth'
+    predictor_model = BaseModel(input_dim=14, hidden_dim=200, num_layers=3)
+    predictor_model.load_state_dict(torch.load(model_path))
+    return predictor_model
+
+
+def eval_baseline_model():
+    class BaselineStrategyModel(nn.Module):
+        """
+        Always bet on player with lowest Bet365 odds.
+        """
+        def __init__(self):
+            super(BaselineStrategyModel, self).__init__()
+        def forward(self, X):
+            # Batch size
+            N = X.size()[0]
+
+            # Access the 1st column (index 0) and the th column (index 9)
+            # These represent the ranks
+            odds_p1 = X[:, 0]
+            odds_p2 = X[:, 1]
+
+            # Initialize the result tensor
+            predictions = torch.zeros((N, 3), dtype=torch.long)
+
+            # Set [1, 0, 0] where odds_p1 < odds_p2, else [0, 1, 0]
+            predictions[:, 0] = (odds_p1 < odds_p2)
+            predictions[:, 1] = (odds_p1 >= odds_p2)
+
+            return predictions
+
+    baseline_model = BaselineStrategyModel()
+    predictor = get_predictor_model()
+    _, val_loader, test_loader = get_transformed_dataloaders(predictor)
+
+    print(f'Performance on Test Set: {evaluate(baseline_model, test_loader)}')
+
+
+def eval_test_model(path_to_model, **kwargs):
+    model = BettingStrategyModel(input_dim=3, hidden_dim=kwargs['hidden_dim'], num_layers=kwargs['num_layers'])
+    model.load_state_dict(torch.load(path_to_model))
+
+    _, _, test_loader = get_dataloaders()
+    return evaluate(model, test_loader)
 
 
 if __name__ == '__main__':
-    grid_search_vals = {
-        'lr': [0.0001],
-        'hidden_dim': [25, 50, 100, 200, 1000],
-        'num_layers': [2, 3, 4, 5]
-    }
+    # grid_search_vals = {
+    #     'lr': [0.0001, 0.001],
+    #     'hidden_dim': [25, 50, 100, 200, 500],
+    #     'num_layers': [2, 3, 4, 5, 7],
+    #     'dropout': [0.0, 0.2, 0.5],
+    # }
+    #
+    # grid_search(250, **grid_search_vals)
 
-    grid_search(250, **grid_search_vals)
+    eval_baseline_model()
