@@ -312,7 +312,7 @@ def eval_test_model(path_to_model, **kwargs):
     model = BettingStrategyModel(input_dim=3, hidden_dim=kwargs['hidden_dim'], num_layers=kwargs['num_layers'])
     model.load_state_dict(torch.load(path_to_model))
 
-    _, _, test_loader = get_dataloaders()
+    _, _, test_loader = get_transformed_dataloaders(get_predictor_model())
     return evaluate(model, test_loader)
 
 
@@ -327,3 +327,13 @@ if __name__ == '__main__':
     # grid_search(250, **grid_search_vals)
 
     eval_baseline_model()
+
+    hyperparams = {
+        'lr': 0.0001,
+        'hidden_dim': 200,
+        'dropout': 0.0,
+        'num_layers': 4,
+    }
+
+    path_to_model = f'../models/betting/lr0.0001_l4_hd200_d0.0/model_e42.pth'
+    print(eval_test_model(path_to_model, **hyperparams))
